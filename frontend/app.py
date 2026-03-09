@@ -1,23 +1,56 @@
 import streamlit as st
 import sys
 import os
+import logging
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.api_client import send_message
 
-st.set_page_config(layout="wide")
+
+# =========================
+# LOGGER SETUP
+# =========================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
+
+logger = logging.getLogger("gateway-ui")
+
+
+# =========================
+# PAGE CONFIG
+# =========================
+
+st.set_page_config(
+    page_title="Gateway Client",
+    layout="wide"
+)
+
+logger.info("Gateway UI started")
 
 st.title("Gateway Client Interface")
 
+
+# =========================
+# TABS
+# =========================
+
 tab1, tab2 = st.tabs(["A2A Client", "MCP Client"])
 
-# Initialize session state
+
+# =========================
+# SESSION STATE INIT
+# =========================
+
 if "config_saved" not in st.session_state:
     st.session_state.config_saved = False
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
 
 # =========================
 # SIDEBAR CONFIGURATION
@@ -60,13 +93,18 @@ with st.sidebar:
 
     if save_config:
 
+        logger.info("User clicked Save Configuration")
+
         if not url:
+            logger.warning("Agent URL missing")
             st.error("A2A Agent URL is required.")
 
         elif not header_name or not header_value:
+            logger.warning("Header configuration missing")
             st.error("Header name and header value are required.")
 
         elif not uploaded_crt or not uploaded_key:
+            logger.warning("Certificates not uploaded")
             st.error("Both client certificate and client key must be uploaded.")
 
         else:
@@ -95,15 +133,11 @@ with st.sidebar:
 
             st.session_state.config_saved = True
 
+            logger.info("Configuration saved successfully")
+
             st.success("Configuration saved successfully.")
 
 
-# =========================
-# A2A CLIENT TAB
-# =========================
-# =========================
-# A2A CLIENT TAB
-# =========================
 # =========================
 # A2A CLIENT TAB
 # =========================
@@ -112,31 +146,27 @@ with tab1:
 
     st.subheader("Chat")
 
-    # Clear Chat Button
     if st.button("Clear Chat"):
+        logger.info("Chat cleared by user")
         st.session_state.messages = []
         st.rerun()
 
-    # Ensure message storage exists
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # 1️⃣ Render chat history FIRST
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # 2️⃣ Place input at the bottom AFTER messages
     user_prompt = st.chat_input("Ask something...")
 
-    # 3️⃣ Handle new input
     if user_prompt:
 
+        logger.info("User sent message to agent")
+
         if not st.session_state.config_saved:
-            st.error("Please configure and save the configuration in the sidebar first.")
+            logger.warning("User attempted message without configuration")
+            st.error("Please configure and save the configuration first.")
 
         else:
-            # Show user message immediately
+
             with st.chat_message("user"):
                 st.markdown(user_prompt)
 
@@ -145,6 +175,9 @@ with tab1:
             )
 
             with st.spinner("Thinking..."):
+
+                logger.info("Sending message to backend API")
+
                 response = send_message(
                     user_prompt,
                     st.session_state.url,
@@ -153,7 +186,6 @@ with tab1:
                     st.session_state.client_key
                 )
 
-            # Show assistant response
             with st.chat_message("assistant"):
                 st.markdown(response)
 
@@ -161,6 +193,14 @@ with tab1:
                 {"role": "assistant", "content": response}
             )
 
+            logger.info("Agent response displayed")
+
+
+# =========================
+# MCP CLIENT TAB
+# =========================
+
 with tab2:
     st.subheader("MCP Client")
+    logger.info("MCP tab accessed")
     st.info("MCP Client UI will be implemented here.")
