@@ -55,7 +55,6 @@ def send_message(
             headers=headers,
             json=payload,
             cert=(client_crt, client_key),
-            timeout=30
         )
 
         logger.info("Received response with status code %s", response.status_code)
