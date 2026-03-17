@@ -1,16 +1,10 @@
 import uuid
 import logging
 import requests
-from typing import Dict, Tuple
+from typing import Dict
 
-# Configure logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
 
-# Reuse HTTP connection
 session = requests.Session()
 
 
@@ -19,11 +13,9 @@ def send_message(
     request_url: str,
     headers: Dict[str, str],
     client_crt: str,
-    client_key: str
+    client_key: str,
+    request_id: str = None
 ) -> str:
-    """
-    Sends a message to the A2A agent endpoint and returns the agent response.
-    """
 
     message_id = str(uuid.uuid4())
 
@@ -45,11 +37,24 @@ def send_message(
         }
     }
 
-    logger.info("Sending request to agent")
-    logger.debug("Request URL: %s", request_url)
-    logger.debug("Payload ID: %s", message_id)
+    # --------------------------------------------------
+    # AGENT REQUEST PAYLOAD
+    # --------------------------------------------------
+    logger.info(
+        "[%s] Agent request payload | url=%s | payload=%s",
+        request_id,
+        request_url,
+        payload
+    )
 
     try:
+
+        logger.info(
+            "[%s] Sending HTTP request to agent | url=%s",
+            request_id,
+            request_url
+        )
+
         response = session.post(
             request_url,
             headers=headers,
@@ -57,40 +62,114 @@ def send_message(
             cert=(client_crt, client_key),
         )
 
-        logger.info("Received response with status code %s", response.status_code)
+        # --------------------------------------------------
+        # HTTP STATUS
+        # --------------------------------------------------
+        logger.info(
+            "[%s] Agent HTTP response received | url=%s | status_code=%s",
+            request_id,
+            request_url,
+            response.status_code
+        )
 
         response.raise_for_status()
 
+        # --------------------------------------------------
+        # RAW HTTP RESPONSE
+        # --------------------------------------------------
+        logger.info(
+            "[%s] Raw agent response | url=%s | response=%s",
+            request_id,
+            request_url,
+            response.text
+        )
+
     except requests.exceptions.Timeout:
-        logger.error("Request timed out")
+
+        logger.info(
+            "[%s] Agent request timed out | url=%s",
+            request_id,
+            request_url
+        )
+
         return "Error: Request timed out."
 
     except requests.exceptions.ConnectionError as e:
-        logger.error("Connection error: %s", str(e))
+
+        logger.info(
+            "[%s] Connection error while calling agent | url=%s | error=%s",
+            request_id,
+            request_url,
+            str(e)
+        )
+
         return f"Connection error: {str(e)}"
 
     except requests.exceptions.HTTPError as e:
-        logger.error("HTTP error: %s", str(e))
+
+        logger.info(
+            "[%s] HTTP error from agent | url=%s | error=%s",
+            request_id,
+            request_url,
+            str(e)
+        )
+
         return f"HTTP error: {str(e)}"
 
     except Exception as e:
-        logger.exception("Unexpected error during API call")
+
+        logger.info(
+            "[%s] Unexpected error during agent call | url=%s | error=%s",
+            request_id,
+            request_url,
+            str(e)
+        )
+
         return f"Unexpected error: {str(e)}"
 
     try:
+
         data = response.json()
-        logger.debug("Response JSON: %s", data)
+
+        logger.info(
+            "[%s] Parsed JSON response from agent | url=%s",
+            request_id,
+            request_url
+        )
 
     except ValueError:
-        logger.error("Invalid JSON response received")
+
+        logger.info(
+            "[%s] Invalid JSON response from agent | url=%s",
+            request_id,
+            request_url
+        )
+
         return "Error: Invalid JSON response from server."
 
     try:
+
         agent_text = data["result"]["status"]["message"]["parts"][0]["text"]
-        logger.info("Agent response extracted successfully")
+
+        # --------------------------------------------------
+        # PARSED RESPONSE
+        # --------------------------------------------------
+        logger.info(
+            "[%s] Final parsed agent message | url=%s | text=%s",
+            request_id,
+            request_url,
+            agent_text
+        )
 
     except (KeyError, IndexError, TypeError):
-        logger.error("Unexpected API response structure: %s", data)
+
+        logger.info(
+            "[%s] Unexpected response format from agent | url=%s | data=%s",
+            request_id,
+            request_url,
+            data
+        )
+
         return f"Unexpected response format: {data}"
 
     return agent_text
